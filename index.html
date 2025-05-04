@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>لوحة تحكم الصيانة الذكية</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+    }
+    .switch input { display: none; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #4ade80;
+    }
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white font-sans transition-colors duration-300" id="body">
+  <header class="bg-gray-800 p-4 text-2xl font-bold flex justify-between items-center">
+    <div class="flex items-center space-x-4 space-x-reverse">
+      <img src="logo.jpg" alt="شعار" class="w-12 h-12 rounded-full">
+      <span>لوحة تحكم الصيانة الذكية</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="themeToggle">
+      <span class="slider"></span>
+    </label>
+  </header>
+
+  <div class="flex flex-col md:flex-row">
+    <aside class="bg-gray-800 w-full md:w-64 p-4 space-y-4">
+      <h2 class="text-xl font-semibold mb-2">القائمة</h2>
+      <ul class="space-y-2">
+        <li><a href="#" class="block p-2 bg-gray-700 rounded hover:bg-gray-600">لوحة الإشعارات</a></li>
+        <li><a href="#" class="block p-2 bg-gray-700 rounded hover:bg-gray-600">إحصائيات الصيانة</a></li>
+        <li><a href="#" class="block p-2 bg-gray-700 rounded hover:bg-gray-600">تحميل التقرير</a></li>
+      </ul>
+    </aside>
+    <main class="flex-1 p-6 space-y-8">
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">الإشعارات الحية</h2>
+        <form id="addNotificationForm" class="bg-gray-800 rounded p-4 mb-4 space-y-4">
+          <h3 class="text-lg font-semibold mb-2">إضافة إشعار جديد</h3>
+          <input type="text" id="notifText" placeholder="نص الإشعار" class="w-full p-2 rounded bg-gray-700 text-white">
+          <select id="notifType" class="w-full p-2 rounded bg-gray-700 text-white">
+            <option value="info">معلومة ℹ️</option>
+            <option value="success">نجاح ✅</option>
+            <option value="warning">تحذير ⚠️</option>
+            <option value="error">خطأ 🚨</option>
+          </select>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded w-full">إرسال الإشعار</button>
+        </form>
+        <div id="notificationContainer" class="space-y-3"></div>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">معدل الأعطال الشهري</h2>
+        <canvas id="statsChart" class="bg-gray-800 rounded p-4"></canvas>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">الأعطال القادمة</h2>
+        <form id="addFaultForm" class="bg-gray-800 p-4 rounded mb-4 space-y-4">
+          <input type="date" id="faultDate" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="تاريخ العطل">
+          <input type="text" id="faultType" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="نوع العطل">
+          <select id="locationSelect" class="w-full p-2 rounded bg-gray-700 text-white">
+            <option value="المبنى الرئيسي">المبنى الرئيسي</option>
+            <option value="المكتبة">المكتبة</option>
+          </select>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded w-full">إضافة العطل</button>
+        </form>
+        <table class="min-w-full bg-gray-800 rounded p-4">
+          <thead>
+            <tr>
+              <th class="px-4 py-2">الدرجة</th>
+              <th class="px-4 py-2">نوع العطل</th>
+              <th class="px-4 py-2">الموقع</th>
+            </tr>
+          </thead>
+          <tbody id="upcomingFaults">
+            <tr>
+              <td class="px-4 py-2">Temp: 58 | Hum 70</td>
+              <td class="px-4 py-2">مشكلة في الشبكة</td>
+              <td class="px-4 py-2">المبنى الرئيسي</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2">Temp: 88 | Hum 98</td>
+              <td class="px-4 py-2">مشكلة في التكييف</td>
+              <td class="px-4 py-2">المكتبة</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">تحميل التقرير</h2>
+        <div class="flex space-x-4 space-x-reverse">
+          <button id="downloadExcel" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded w-48">تحميل Excel</button>
+          <button id="downloadPDF" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded w-48">تحميل PDF</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const notifForm = document.getElementById("addNotificationForm");
+      const notifText = document.getElementById("notifText");
+      const notifType = document.getElementById("notifType");
+      const notifContainer = document.getElementById("notificationContainer");
+  
+      notifForm.onsubmit = function(e) {
+        e.preventDefault();
+        const text = notifText.value.trim();
+        const type = notifType.value;
+        if (!text) {
+          alert("يرجى إدخال نص الإشعار.");
+          return;
+        }
+        const notificationElement = document.createElement("div");
+        notificationElement.className = "p-3 rounded bg-gray-700 shadow-md";
+        notificationElement.innerHTML = `<strong>${text}</strong> <span class="text-sm block">نوع: ${type}</span>`;
+        notifContainer.prepend(notificationElement);
+        notifForm.reset();
+      };
+  
+      const ctx = document.getElementById('statsChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'],
+          datasets: [{
+            label: 'عدد الأعطال',
+            data: [15, 10, 12, 8, 11, 6],
+            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+  
+      const themeToggle = document.getElementById('themeToggle');
+      const body = document.getElementById('body');
+  
+      themeToggle.addEventListener('change', () => {
+        if (themeToggle.checked) {
+          body.classList.remove('bg-gray-900', 'text-white');
+          body.classList.add('bg-white', 'text-black');
+        } else {
+          body.classList.add('bg-gray-900', 'text-white');
+          body.classList.remove('bg-white', 'text-black');
+        }
+      });
+  
+      const addFaultForm = document.getElementById("addFaultForm");
+      const upcomingFaultsTable = document.getElementById("upcomingFaults");
+  
+      addFaultForm.onsubmit = function(e) {
+        e.preventDefault();
+        const faultDate = document.getElementById("faultDate").value;
+        const faultType = document.getElementById("faultType").value;
+        const location = document.getElementById("locationSelect").value;
+  
+        if (!faultDate || !faultType || !location) {
+          alert("يرجى ملء جميع الحقول.");
+          return;
+        }
+  
+        const newRow = document.createElement("tr");
+        newRow.innerHTML = `<td class="px-4 py-2">${faultDate}</td><td class="px-4 py-2">${faultType}</td><td class="px-4 py-2">${location}</td>`;
+        upcomingFaultsTable.appendChild(newRow);
+        addFaultForm.reset();
+      };
+  
+      document.getElementById('downloadExcel').addEventListener('click', function() {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.table_to_sheet(document.querySelector("table"));
+        XLSX.utils.book_append_sheet(wb, ws, "الأعطال القادمة");
+        XLSX.writeFile(wb, "تقرير_الأعطال_القادمة.xlsx");
+        alert("تم تحميل التقرير بنجاح ✅");
+      });
+  
+      document.getElementById('downloadPDF').addEventListener('click', function() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("تقرير الأعطال القادمة", 10, 10);
+        doc.autoTable({ html: 'table' });
+        doc.save("تقرير_الأعطال_القادمة.pdf");
+      });
+    });
+  </script>
+  
+</body>
+</html>
